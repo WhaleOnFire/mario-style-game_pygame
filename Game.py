@@ -11,10 +11,21 @@ running=True
 class Player (pygame.sprite.Sprite):
     def __init__(self,x,y):
         super().__init__()
-        self.image=pygame.Surface((50,50))
-        self.image.fill("purple")
-        self.rect=self.image.get_rect(center=(x,y))
+        self.idle=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Idle.png",11)
+        self.run=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Run.png",12)
+        self.jump=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Jump.png",1)
+        self.fall=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Fall.png",1)
+        self.hit=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Hit.png",7)
+        self.double_jump=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Double_Jump.png",6)
+        self.wall_jump=self.load_frames(r"C:\Users\master\Desktop\game\assets\1 Main Characters\2\Wall_Jump.png",5)
         
+        self.current_state=self.idle
+        self.current_frame=0
+        self.image=self.current_state[self.current_frame]
+        self.rect=self.image.get_rect(center=(x,y))
+        self.animation_speed=20
+        self.animation_index=0
+        self.facing_right=True
         self.y_velocity=0
         self.gravity=0.5
         self.jump_power=-10
@@ -27,8 +38,10 @@ class Player (pygame.sprite.Sprite):
         keys=pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
             self.x_velocity-=self.acceleration
+            self.facing_right=False
         elif keys[pygame.K_RIGHT]:
             self.x_velocity+=self.acceleration 
+            self.facing_right=True
         else:
             if self.x_velocity>0: #لليمين
                 self.x_velocity-=self.friction
@@ -45,7 +58,7 @@ class Player (pygame.sprite.Sprite):
             self.x_velocity=self.max_speed
         if self.x_velocity<-self.max_speed:
             self.x_velocity=-self.max_speed
-        self.rect.x+=self.x_velocity
+ 
     def apply_gravity(self):
         self.y_velocity+=self.gravity
         self.rect.y+= self.y_velocity
@@ -60,9 +73,47 @@ class Player (pygame.sprite.Sprite):
                 elif self.y_velocity<0:
                     self.rect.top=tile.rect.bottom
                     self.y_velocity=0
-    def update(self,tiles):
+    def horizontal_collision(self,tiles):
+        self.rect.x+=self.x_velocity
+        for tile in tiles:
+            if self.rect.colliderect(tile.rect):
+                if self.x_velocity>0:
+                    self.rect.right=tile.rect.left
+                if self.x_velocity<0:
+                    self.rect.left=tile.rect.right    
+                self.x_velocity=0
+    def load_frames(self,image_path,cols):
+        sheet=pygame.image.load(image_path).convert_alpha()   
+        sheet_w,sheet_h=sheet.get_size()      
+        frame_w=sheet_w//cols
+        frame_h=sheet_h
+        frames=[]
+        for col in range(cols):
+            frame=sheet.subsurface(pygame.Rect(col*frame_w,0,frame_w,frame_h)).copy()
+            frame=pygame.transform.smoothscale(frame,(60,60))
+            frames.append(frame)
+        return frames
+    def update(self,tiles,dt):
         self.motion()
         self.vertical_collision(tiles)
+        self.horizontal_collision(tiles)
+        if self.y_velocity>0 and not self.on_ground:
+            self.current_state=self.fall
+        elif self.y_velocity<0:
+            self.current_state=self.jump
+        elif self.x_velocity!=0 and self.on_ground :
+            self.current_state=self.run
+        else:
+            self.current_state=self.idle
+        self.animation_index +=self.animation_speed*dt
+        if self.animation_index>=len(self.current_state):
+            self.animation_index=0
+        self.current_frame=int(self.animation_index)
+        frame=self.current_state[self.current_frame]
+        if self.facing_right:
+            self.image=frame
+        else:
+            self.image=pygame.transform.flip(frame,True,False)
 class Tile(pygame.sprite.Sprite):
     def __init__(self,pos,image):
         super().__init__()
@@ -108,9 +159,9 @@ while running:
     for event in pygame.event.get():
         if event.type==pygame.QUIT:
             running=False
-    
     screen.fill("gray")  
-    pl_sprites.update(tile_sprites)
+    dt=clock.tick(60)/1000
+    pl_sprites.update(tile_sprites,dt)
     camera.update(pl.rect)
     for t in tile_sprites:
         screen.blit(t.image,camera.apply(t.rect))
@@ -120,4 +171,6 @@ while running:
     pygame.display.update()
     clock.tick(60)
 pygame.quit()
+              
+
               
